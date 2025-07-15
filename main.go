@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 
 	"golang.org/x/sys/unix"
 )
@@ -14,16 +16,38 @@ type state struct {
 }
 
 
+func determineReadWriteOptions() (uint, uint, error) {
+	sysArch := runtime.GOARCH
+
+	switch sysArch {
+		case "arm64":
+			return armGet, armSet, nil
+
+		case "amd64":
+			return amdGet, amdSet, nil
+
+		default:
+			return 0, 0, errors.New("Architecture not found")
+	}
+}
+
+
 func main() {
+	ioctlGet, ioctlSet, err := determineReadWriteOptions()
+
+	if err != nil {
+		panic(err)
+	}
+
 	fd := unix.Stdin
-	term, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	term, err := unix.IoctlGetTermios(fd, ioctlGet)
 	oldState := state{term: *term}
 
 	if err != nil {
 		panic(err)
 	}
 
-	enableRawMode(term, fd)
+	enableRawMode(term, fd, ioctlSet)
 
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadByte()
@@ -38,12 +62,12 @@ func main() {
 	}
 	
 	// Disable raw mode at exit
-	defer disableRawMode(&oldState, fd)
+	defer disableRawMode(&oldState, fd, ioctlSet)
 }
 
 
-func disableRawMode(state *state, fd int) {
-	err := unix.IoctlSetTermios(fd, unix.TCSETSF, &state.term) 
+func disableRawMode(state *state, fd int, ioctlSet uint) {
+	err := unix.IoctlSetTermios(fd, ioctlSet, &state.term) 
 
 	if err != nil {
 		panic(err)
@@ -51,11 +75,11 @@ func disableRawMode(state *state, fd int) {
 }
 
 
-func enableRawMode(term *unix.Termios, fd int) *unix.Termios {
+func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 	term.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON
 	
 	// Apply new terminal settings
-	err := unix.IoctlSetTermios(fd, unix.TCSETAF, term) 
+	err := unix.IoctlSetTermios(fd, ioctlSet, term) 
 
 	if err != nil {
 		panic(err)
