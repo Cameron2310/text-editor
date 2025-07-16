@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
-	"runtime"
 
 	"golang.org/x/sys/unix"
 )
@@ -16,23 +14,8 @@ type state struct {
 }
 
 
-func determineReadWriteOptions() (uint, uint, error) {
-	sysArch := runtime.GOARCH
-
-	switch sysArch {
-		case "arm64":
-			return armGet, armSet, nil
-
-		case "amd64":
-			return amdGet, amdSet, nil
-
-		default:
-			return 0, 0, errors.New("Architecture not found")
-	}
-}
-
-
 func main() {
+	clearScreen()
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
 	if err != nil {
@@ -51,7 +34,9 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadByte()
-	for (text != byte('q')) {
+	quitCmd := 17
+
+	for (text != byte(quitCmd)) {
 		text, _ = reader.ReadByte()
 
 		if (int(text) > 0 && int(text) <= 31) {
@@ -63,6 +48,12 @@ func main() {
 	
 	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
+	defer clearScreen()
+}
+
+
+func clearScreen() {
+	fmt.Println("\x1b[2J\x1b[H")	
 }
 
 
