@@ -44,10 +44,9 @@ func main() {
 		savedData = append(savedData, string(text))
 
 		if (int(text) > 0 && int(text) <= 31) {
-			fmt.Print(int(text))
+			// fmt.Print(int(text))
 		} else {
-			handleKeyPress(string(text))
-			// fmt.Print(string(text))
+			handleKeyPress(string(text), *reader)
 		}
 	}
 	
@@ -58,19 +57,24 @@ func main() {
 }
 
 
-func handleKeyPress(keypress string) {
+func handleKeyPress(keypress string, reader bufio.Reader) {
 	switch keypress {
-		case "a":
-			fmt.Print("\033[D")
+		case "[":
+			nextVal, _ := reader.ReadByte()
 
-		case "d":
-			fmt.Print("\033[C")
+			switch string(nextVal) {
+				case "D":
+					fmt.Print("\033[D")
 
-		case "w":
-			fmt.Print("\033[A")
+				case "C":
+					fmt.Print("\033[C")
 
-		case "s":
-			fmt.Print("\033[B")
+				case "A":
+					fmt.Print("\033[A")
+
+				case "B":
+					fmt.Print("\033[B")
+			}
 			
 		default:
 			fmt.Print(keypress)
