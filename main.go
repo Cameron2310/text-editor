@@ -8,11 +8,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-
 type state struct {
 	term unix.Termios
 }
-
 
 func main() {
 	clearScreen()
@@ -39,26 +37,35 @@ func main() {
 
 	quitCmd := 17
 
-	for (text != byte(quitCmd)) {
+	for text != byte(quitCmd) {
 		text, _ = reader.ReadByte()
 		savedData = append(savedData, string(text))
 
-		if (int(text) > 0 && int(text) <= 31) {
-			// fmt.Print(int(text))
+		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
+			handleControlKeys(int(text))
 		} else {
-			handleKeyPress(string(text), *reader)
+			handleKeyPress(string(text), reader)
 		}
 	}
-	
+
 	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
 	// defer clearScreen()
 	fmt.Println(savedData)
 }
 
-
-func handleKeyPress(keypress string, reader bufio.Reader) {
+// TODO: make all keymappings either octal or hex
+func handleControlKeys(keypress int) {
 	switch keypress {
+		case 127:
+			// fmt.Print("\b")
+			fmt.Print("\010\033[P")
+	}
+}
+
+func handleKeyPress(keypress string, reader *bufio.Reader) {
+	switch keypress {
+		// TODO: fix bug where if [ key pressed it requires second [
 		case "[":
 			nextVal, _ := reader.ReadByte()
 
@@ -74,13 +81,15 @@ func handleKeyPress(keypress string, reader bufio.Reader) {
 
 				case "B":
 					fmt.Print("\033[B")
+
+				default:
+					fmt.Print(string(nextVal))
 			}
-			
+
 		default:
 			fmt.Print(keypress)
 	}
 }
-
 
 func drawRows() {
 	for range 24 {
@@ -90,20 +99,17 @@ func drawRows() {
 	fmt.Print("\x1b[H")
 }
 
-
 func clearScreen() {
-	fmt.Println("\x1b[2J\x1b[H")	
+	fmt.Println("\x1b[2J\x1b[H")
 }
 
-
 func disableRawMode(state *state, fd int, ioctlSet uint) {
-	err := unix.IoctlSetTermios(fd, ioctlSet, &state.term) 
+	err := unix.IoctlSetTermios(fd, ioctlSet, &state.term)
 
 	if err != nil {
 		panic(err)
 	}
 }
-
 
 func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 	term.Cflag |= unix.CS8 // sets char mask to 8 bits
@@ -113,9 +119,9 @@ func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 
 	term.Cc[unix.VMIN] = 1
 	term.Cc[unix.VTIME] = 0
-	
+
 	// Apply new terminal settings
-	err := unix.IoctlSetTermios(fd, ioctlSet, term) 
+	err := unix.IoctlSetTermios(fd, ioctlSet, term)
 
 	if err != nil {
 		panic(err)
