@@ -16,6 +16,7 @@ type state struct {
 
 func main() {
 	clearScreen()
+	drawRows()
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
 	if err != nil {
@@ -34,21 +35,55 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadByte()
+	savedData := []string{string(text)}
+
 	quitCmd := 17
 
 	for (text != byte(quitCmd)) {
 		text, _ = reader.ReadByte()
+		savedData = append(savedData, string(text))
 
 		if (int(text) > 0 && int(text) <= 31) {
 			fmt.Print(int(text))
 		} else {
-			fmt.Printf("%v\r\n", string(text))
+			handleKeyPress(string(text))
+			// fmt.Print(string(text))
 		}
 	}
 	
 	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
-	defer clearScreen()
+	// defer clearScreen()
+	fmt.Println(savedData)
+}
+
+
+func handleKeyPress(keypress string) {
+	switch keypress {
+		case "a":
+			fmt.Print("\033[D")
+
+		case "d":
+			fmt.Print("\033[C")
+
+		case "w":
+			fmt.Print("\033[A")
+
+		case "s":
+			fmt.Print("\033[B")
+			
+		default:
+			fmt.Print(keypress)
+	}
+}
+
+
+func drawRows() {
+	for range 24 {
+		fmt.Print("~\r\n")
+	}
+
+	fmt.Print("\x1b[H")
 }
 
 
