@@ -8,32 +8,52 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type state struct {
-	term unix.Termios
+
+type editorConfig struct {
+	rows int
+	cols int
 }
 
 func main() {
+	filePath := os.Args[1]
+	fd := unix.Stdin
+
+	if len(filePath) == 0 {
+		fmt.Println("File path not found...")
+		return
+	}
+
 	clearScreen()
-	drawRows()
+	editorConfig := getEditorConfig(fd, unix.TIOCGWINSZ)
+	drawTerminal(editorConfig)
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
 	if err != nil {
 		panic(err)
 	}
 
-	fd := unix.Stdin
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
-	oldState := state{term: *term}
+	oldState := *term
 
 	if err != nil {
 		panic(err)
 	}
 
 	enableRawMode(term, fd, ioctlSet)
+	// data := readData(filePath)
 
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadByte()
 	savedData := []string{string(text)}
+
+	// if data != nil {
+	// 	savedData = data
+	//
+	// 	for _, val := range savedData {
+	// 		fmt.Print(val)
+	// 	}
+	// }
+
 
 	quitCmd := 17
 
@@ -51,14 +71,30 @@ func main() {
 	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
 	// defer clearScreen()
-	fmt.Println(savedData)
+
+	// defer writeData(filePath, savedData)
 }
+
+func getEditorConfig(fd int, req uint) editorConfig {
+	winConfig, err := unix.IoctlGetWinsize(fd, req)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col)}
+}
+
+
+func drawTerminal(config editorConfig) {
+	drawRows(config.rows)
+}
+
 
 // TODO: make all keymappings either octal or hex
 func handleControlKeys(keypress int) {
 	switch keypress {
 		case 127:
-			// fmt.Print("\b")
 			fmt.Print("\010\033[P")
 	}
 }
@@ -91,11 +127,12 @@ func handleKeyPress(keypress string, reader *bufio.Reader) {
 	}
 }
 
-func drawRows() {
-	for range 24 {
+func drawRows(rows int) {
+	for range rows - 1 {
 		fmt.Print("~\r\n")
 	}
 
+	fmt.Print("~")
 	fmt.Print("\x1b[H")
 }
 
@@ -103,8 +140,8 @@ func clearScreen() {
 	fmt.Println("\x1b[2J\x1b[H")
 }
 
-func disableRawMode(state *state, fd int, ioctlSet uint) {
-	err := unix.IoctlSetTermios(fd, ioctlSet, &state.term)
+func disableRawMode(term *unix.Termios, fd int, ioctlSet uint) {
+	err := unix.IoctlSetTermios(fd, ioctlSet, term)
 
 	if err != nil {
 		panic(err)
