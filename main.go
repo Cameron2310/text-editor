@@ -8,24 +8,42 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-
 type editorConfig struct {
 	rows int
 	cols int
+	x int
+	y int
+}
+
+type buffer struct {
+	text string
+	length int
+}
+
+func (buf *buffer) appendText(text string) {
+	newBuf := buf.text + text
+
+	if len(newBuf) == 0 {
+		return
+	}
+
+	buf.text = newBuf
+	buf.length += len(newBuf)
 }
 
 func main() {
-	filePath := os.Args[1]
-	fd := unix.Stdin
-
-	if len(filePath) == 0 {
+	if len(os.Args) < 2 {
 		fmt.Println("File path not found...")
 		return
 	}
 
-	clearScreen()
+	// filePath := os.Args[1]
+	fd := unix.Stdin
+
 	editorConfig := getEditorConfig(fd, unix.TIOCGWINSZ)
-	drawTerminal(editorConfig)
+	buf := &buffer{text: "", length: 0}
+	editorContent := make([]string, editorConfig.rows)
+
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
 	if err != nil {
@@ -44,50 +62,71 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadByte()
-	savedData := []string{string(text)}
 
-	// if data != nil {
-	// 	savedData = data
-	//
-	// 	for _, val := range savedData {
-	// 		fmt.Print(val)
+	// if len(data) > 0 {
+	// 	for i, val := range data {
+	// 		fmt.Printf("\033[%d;0H", i)
+	// 		fmt.Print("~ " + val)
 	// 	}
 	// }
-
 
 	quitCmd := 17
 
 	for text != byte(quitCmd) {
+		refreshScreen(editorConfig, buf, editorContent)
 		text, _ = reader.ReadByte()
-		savedData = append(savedData, string(text))
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
 			handleControlKeys(int(text))
 		} else {
-			handleKeyPress(string(text), reader)
+			handleKeyPress(string(text), reader, editorConfig, editorContent)
 		}
 	}
 
 	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
-	// defer clearScreen()
-
-	// defer writeData(filePath, savedData)
+	defer fmt.Println("\x1b[2J")
 }
 
-func getEditorConfig(fd int, req uint) editorConfig {
+func getEditorConfig(fd int, req uint) *editorConfig {
 	winConfig, err := unix.IoctlGetWinsize(fd, req)
 
 	if err != nil {
 		panic(err)
 	}
 
-	return editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col)}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0}
 }
 
 
-func drawTerminal(config editorConfig) {
-	drawRows(config.rows)
+func drawLeftBorder(rows int, buf *buffer) {
+	for i := range rows - 1 {
+		buf.appendText("~")
+		buf.appendText("\x1b[K")
+
+		if i < rows - 1 {
+			buf.appendText("\r\n")
+		} 
+	}
+}
+
+
+func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
+	buf.appendText("\x1b[?25l")
+	buf.appendText("\x1b[H")
+
+	drawLeftBorder(config.rows, buf)
+
+	for i, s := range editorContent {
+		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
+		buf.appendText(s)
+	}
+
+	cursorPos := fmt.Sprintf("\x1b[%d;%dH", config.y + 1, config.x + 1)
+	buf.appendText(cursorPos)
+
+	buf.appendText("\x1b[?25h")
+	fmt.Print(buf.text)
 }
 
 
@@ -99,46 +138,38 @@ func handleControlKeys(keypress int) {
 	}
 }
 
-func handleKeyPress(keypress string, reader *bufio.Reader) {
+func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
 	switch keypress {
 		// TODO: fix bug where if [ key pressed it requires second [
 		case "[":
 			nextVal, _ := reader.ReadByte()
 
 			switch string(nextVal) {
-				case "D":
-					fmt.Print("\033[D")
+				case "A": // up
+					if config.y - 1 >= 0 {
+						config.y -= 1
+					}
 
-				case "C":
-					fmt.Print("\033[C")
+				case "B": // down
+					config.y += 1
 
-				case "A":
-					fmt.Print("\033[A")
+				case "C": // right
+					config.x += 1
 
-				case "B":
-					fmt.Print("\033[B")
+				case "D": // left
+					if config.x - 1 > 0 {
+						config.x -= 1
+					}
 
 				default:
 					fmt.Print(string(nextVal))
 			}
 
 		default:
-			fmt.Print(keypress)
+			editorContent[config.y] += keypress 
 	}
 }
 
-func drawRows(rows int) {
-	for range rows - 1 {
-		fmt.Print("~\r\n")
-	}
-
-	fmt.Print("~")
-	fmt.Print("\x1b[H")
-}
-
-func clearScreen() {
-	fmt.Println("\x1b[2J\x1b[H")
-}
 
 func disableRawMode(term *unix.Termios, fd int, ioctlSet uint) {
 	err := unix.IoctlSetTermios(fd, ioctlSet, term)
@@ -157,7 +188,6 @@ func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 	term.Cc[unix.VMIN] = 1
 	term.Cc[unix.VTIME] = 0
 
-	// Apply new terminal settings
 	err := unix.IoctlSetTermios(fd, ioctlSet, term)
 
 	if err != nil {

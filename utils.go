@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -30,15 +31,20 @@ func determineReadWriteOptions() (uint, uint, error) {
 
 
 func readData(filePath string) []string {
-	content, err := os.ReadFile(filePath)
+	content, err := os.Open(filePath)
 	var returnVal []string
 
 	if err != nil {
-		panic(err)
+		return []string{}
 	}
 
-	for _, val := range content {
-		returnVal = append(returnVal, string(val))
+	defer content.Close()
+
+	fileScanner := bufio.NewScanner(content)
+	fileScanner.Split(bufio.ScanLines)
+
+	for fileScanner.Scan() {
+		returnVal = append(returnVal, fileScanner.Text())
 	}
 
 	return returnVal
@@ -54,12 +60,10 @@ func writeData(filePath string, data []string) {
 
 	defer f.Close()
 
+	fmt.Println(data)
 	for _, str := range data {
-		fmt.Print(str)
-		_, err := f.WriteString(str)
-
-		if err != nil {
-			panic(err)
+		if len(str) > 0 {
+			f.WriteString(str + "\n")
 		}
 	}
 
