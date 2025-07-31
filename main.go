@@ -148,13 +148,30 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 				case "A": // up
 					if config.y - 1 >= 0 {
 						config.y -= 1
+                        row_len := len(editorContent[config.y])
+
+                        if row_len > 0 {
+                            config.x = row_len
+                        } else {
+                            config.x = 1
+                        }
 					}
 
 				case "B": // down
 					config.y += 1
+                    row_len := len(editorContent[config.y])
+
+                    if row_len > 0 {
+                        config.x = row_len
+                    } else {
+                        config.x = 1
+                    }
 
 				case "C": // right
-					config.x += 1
+                    row_len := len(editorContent[config.y])
+                    if config.x + 1 <= row_len {
+                        config.x += 1
+                    }
 
 				case "D": // left
 					if config.x - 1 > 0 {
@@ -162,11 +179,13 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 					}
 
 				default:
-					fmt.Print(string(nextVal))
+					editorContent[config.y] += string(nextVal)
+                    config.x += 1
 			}
 
 		default:
-			editorContent[config.y] += keypress 
+			editorContent[config.y] += keypress
+            config.x += 1
 	}
 }
 
