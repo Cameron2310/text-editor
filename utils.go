@@ -41,12 +41,22 @@ func readData(filePath string) []string {
 	defer content.Close()
 
 	fileScanner := bufio.NewScanner(content)
+
+	// TODO: change the way data is read
+	const maxCapacity = 1024 * 1024
+	fileScanner.Buffer(make([]byte, 0, maxCapacity), maxCapacity)
+
 	fileScanner.Split(bufio.ScanLines)
 
 	for fileScanner.Scan() {
 		returnVal = append(returnVal, fileScanner.Text())
 	}
+	
+	if err = fileScanner.Err(); err != nil {
+		log.Panic("Error ---> ", err)
+	}
 
+	log.Printf("Reading from %v\n%v", filePath, returnVal)
 	return returnVal
 }
 
