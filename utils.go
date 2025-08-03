@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
+	"log"
 	"os"
 	"runtime"
 )
@@ -52,7 +52,7 @@ func readData(filePath string) []string {
 
 
 func writeData(filePath string, data []string) {
-	f, err := os.OpenFile(filePath, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filePath, os.O_CREATE | os.O_WRONLY, 0644)
 
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func writeData(filePath string, data []string) {
 
 	defer f.Close()
 
-	fmt.Println(data)
+	log.Println(data)
 	for _, str := range data {
 		if len(str) > 0 {
 			f.WriteString(str + "\n")
@@ -68,4 +68,19 @@ func writeData(filePath string, data []string) {
 	}
 
 	f.Sync()
+}
+
+
+func configureLogger(filePath string) {
+	logFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	defer logFile.Close()
+
+	log.SetOutput(logFile)
+
+    log.SetFlags(log.Lshortfile | log.LstdFlags)
 }

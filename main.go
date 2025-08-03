@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -37,7 +38,18 @@ func main() {
 		return
 	}
 
-	// filePath := os.Args[1]
+	logFile, err := os.OpenFile("logs/text-editor.log", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	defer logFile.Close()
+
+	log.SetOutput(logFile)
+    log.SetFlags(log.Lshortfile | log.LstdFlags)
+
+	filePath := os.Args[1]
 	fd := unix.Stdin
 
 	editorConfig := getEditorConfig(fd, unix.TIOCGWINSZ)
@@ -58,33 +70,37 @@ func main() {
 	}
 
 	enableRawMode(term, fd, ioctlSet)
-	// data := readData(filePath)
+	data := readData(filePath)
 
 	reader := bufio.NewReader(os.Stdin)
-	text, _ := reader.ReadByte()
+	text := byte(0)
 
-	// if len(data) > 0 {
-	// 	for i, val := range data {
-	// 		fmt.Printf("\033[%d;0H", i)
-	// 		fmt.Print("~ " + val)
-	// 	}
-	// }
+	if len(data) > 0 {
+		for i, val := range data {
+			editorContent[i] = val
+		}
+	}
 
 	quitCmd := 17
+	for {
+		if text == byte(quitCmd) {
+			break
+		}
 
-	for text != byte(quitCmd) {
 		refreshScreen(editorConfig, buf, editorContent)
 		text, _ = reader.ReadByte()
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			handleControlKeys(int(text))
+			handleControlKeys(int(text), editorConfig, editorContent)
 		} else {
 			handleKeyPress(string(text), reader, editorConfig, editorContent)
 		}
+
+		buf.text = ""
 	}
 
-	// Disable raw mode at exit
 	defer disableRawMode(&oldState, fd, ioctlSet)
+	defer writeData(filePath, editorContent)
 	defer fmt.Println("\x1b[2J")
 }
 
@@ -112,6 +128,7 @@ func drawLeftBorder(rows int, buf *buffer) {
 
 
 func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
+	buf.appendText("\x1b[6 q")
 	buf.appendText("\x1b[?25l")
 	buf.appendText("\x1b[H")
 
@@ -131,10 +148,20 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 
 // TODO: make all keymappings either octal or hex
-func handleControlKeys(keypress int) {
+func handleControlKeys(keypress int, config *editorConfig, editorContent []string) {
 	switch keypress {
 		case 127:
-			fmt.Print("\010\033[P")
+			if config.x > 1 {
+				config.x -= 1
+				runes := []rune(editorContent[config.y])
+
+				if config.x >= len(runes) {
+					editorContent[config.y] = string(runes[:config.x - 1])
+				} else {
+					editorContent[config.y] = string(runes[:config.x]) + string(runes[config.x + 1:])
+				}
+
+			}
 	}
 }
 
@@ -151,7 +178,7 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
                         row_len := len(editorContent[config.y])
 
                         if row_len > 0 {
-                            config.x = row_len
+                            config.x = row_len + 1
                         } else {
                             config.x = 1
                         }
@@ -162,14 +189,14 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
                     row_len := len(editorContent[config.y])
 
                     if row_len > 0 {
-                        config.x = row_len
+                        config.x = row_len + 1
                     } else {
                         config.x = 1
                     }
 
 				case "C": // right
                     row_len := len(editorContent[config.y])
-                    if config.x + 1 <= row_len {
+                    if config.x + 1 <= row_len + 1 {
                         config.x += 1
                     }
 
