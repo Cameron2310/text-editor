@@ -5,21 +5,35 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 
 	"golang.org/x/sys/unix"
 )
 
+type position struct {
+	x int
+	y int
+}
+
+type editorState struct {
+	content []string
+	cursorPos position
+}
+
+// TODO: replace x & y with position struct
 type editorConfig struct {
 	rows int
 	cols int
 	x int
 	y int
+	stateIdx int
 }
 
 type buffer struct {
 	text string
 	length int
 }
+
 
 func (buf *buffer) appendText(text string) {
 	newBuf := buf.text + text
@@ -54,12 +68,21 @@ func main() {
 
 	editorConfig := getEditorConfig(fd, unix.TIOCGWINSZ)
 	buf := &buffer{text: "", length: 0}
-	editorContent := make([]string, editorConfig.rows)
 
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
 	if err != nil {
 		panic(err)
+	}
+
+	data := readData(filePath)
+
+	editorContent := make([]string, editorConfig.rows)
+	var prevStates []editorState
+	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.x, y: editorConfig.y}})
+
+	if len(data) > 0 {
+		copy(editorContent, data)
 	}
 
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
@@ -70,18 +93,11 @@ func main() {
 	}
 
 	enableRawMode(term, fd, ioctlSet)
-	data := readData(filePath)
 
 	reader := bufio.NewReader(os.Stdin)
 	text := byte(0)
-
-	if len(data) > 0 {
-		for i, val := range data {
-			editorContent[i] = val
-		}
-	}
-
 	quitCmd := 17
+
 	for {
 		if text == byte(quitCmd) {
 			break
@@ -89,11 +105,22 @@ func main() {
 
 		refreshScreen(editorConfig, buf, editorContent)
 		text, _ = reader.ReadByte()
+		var goBackToPrevState bool
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			handleControlKeys(int(text), editorConfig, editorContent)
+			editorContent, goBackToPrevState = handleControlKeys(int(text), editorConfig, editorContent, prevStates)
 		} else {
 			handleKeyPress(string(text), reader, editorConfig, editorContent)
+		}
+
+		if slices.Equal(editorContent, prevStates[len(prevStates) - 1].content) == false {
+			if !goBackToPrevState {
+				tmp := make([]string, len(editorContent))
+				copy(tmp, editorContent)
+
+				prevStates = append(prevStates, editorState{content: tmp, cursorPos: position{x: editorConfig.x, y: editorConfig.y}})
+				editorConfig.stateIdx += 1
+			}
 		}
 
 		buf.text = ""
@@ -104,6 +131,7 @@ func main() {
 	defer fmt.Println("\x1b[2J")
 }
 
+
 func getEditorConfig(fd int, req uint) *editorConfig {
 	winConfig, err := unix.IoctlGetWinsize(fd, req)
 
@@ -111,7 +139,7 @@ func getEditorConfig(fd int, req uint) *editorConfig {
 		panic(err)
 	}
 
-	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 0}
 }
 
 
@@ -148,8 +176,27 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 
 // TODO: make all keymappings either octal or hex
-func handleControlKeys(keypress int, config *editorConfig, editorContent []string) {
+func handleControlKeys(keypress int, config *editorConfig, editorContent []string, prevStates []editorState) ([]string, bool) {
+	goBackToPrevState := false
+
 	switch keypress {
+		// Ctrl-z
+		case 26:
+			if config.stateIdx > 0 {
+				config.stateIdx -= 1
+				goBackToPrevState = true
+
+				config.x = prevStates[config.stateIdx].cursorPos.x
+				config.y = prevStates[config.stateIdx].cursorPos.y
+
+				editorContent = prevStates[config.stateIdx].content
+				if len(editorContent) == 0 {
+					log.Println("editor content is nil. Resetting...")
+					editorContent = make([]string, config.rows)
+				}
+			}
+
+		// Backspace
 		case 127:
 			if config.x > 1 {
 				config.x -= 1
@@ -160,9 +207,10 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 				} else {
 					editorContent[config.y] = string(runes[:config.x]) + string(runes[config.x + 1:])
 				}
-
 			}
 	}
+
+	return editorContent, goBackToPrevState
 }
 
 func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
@@ -214,6 +262,7 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 			editorContent[config.y] += keypress
             config.x += 1
 	}
+
 }
 
 
