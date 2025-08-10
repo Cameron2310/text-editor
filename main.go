@@ -53,8 +53,14 @@ func main() {
 	var prevStates []editorState
 	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.x, y: editorConfig.y}})
 
-	if len(data) > 0 {
-		copy(editorContent, data)
+	lenData := len(data)
+	if lenData > 0 {
+		editorContent = data
+		// copy(editorContent, data)
+
+		if lenData > editorConfig.rows {
+			editorConfig.rows = lenData
+		}
 	}
 
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)

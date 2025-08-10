@@ -88,6 +88,7 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 
 // TODO: make all keymappings either octal or hex
+// TODO: fix bug where initial state gets overwritten
 func handleControlKeys(keypress int, config *editorConfig, editorContent []string, prevStates []editorState) ([]string, bool) {
 	goBackToPrevState := false
 
@@ -110,6 +111,17 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 					log.Println("editor content is nil. Resetting...")
 					editorContent = make([]string, config.rows)
 				}
+			}
+
+		// Ctrl-r Redo
+		case 18:
+			if config.stateIdx + 1 < len(prevStates) {
+				config.stateIdx += 1
+				goBackToPrevState = true
+
+				config.x = prevStates[config.stateIdx].cursorPos.x
+				config.y = prevStates[config.stateIdx].cursorPos.y
+				editorContent = prevStates[config.stateIdx].content
 			}
 
 		// Backspace
@@ -178,5 +190,4 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 			editorContent[config.y] += keypress
             config.x += 1
 	}
-
 }
