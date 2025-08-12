@@ -74,10 +74,28 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 	drawLeftBorder(config.rows, buf)
 
-	for i, s := range editorContent {
-		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
-		buf.appendText(s)
+	// Show the first x number of rows
+	log.Println("rows --->", config.rows)
+	log.Println("current y -->", config.y)
+	
+	var start, end int
+
+	if config.y == 0 {
+		start = 0
+	} else {
+		start = config.rows % config.y
 	}
+	end = start + config.y
+
+	for i := start; i < end; i++ {
+		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i, 2))
+		buf.appendText(editorContent[i])
+	}
+
+	// for i, s := range editorContent {
+	// 	buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
+	// 	buf.appendText(s)
+	// }
 
 	cursorPos := fmt.Sprintf("\x1b[%d;%dH", config.y + 1, config.x + 1)
 	buf.appendText(cursorPos)

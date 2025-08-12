@@ -57,10 +57,6 @@ func main() {
 	if lenData > 0 {
 		editorContent = data
 		// copy(editorContent, data)
-
-		if lenData > editorConfig.rows {
-			editorConfig.rows = lenData
-		}
 	}
 
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
