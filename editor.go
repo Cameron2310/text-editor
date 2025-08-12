@@ -30,6 +30,7 @@ type editorConfig struct {
 	x int
 	y int
 	stateIdx int
+    firstRowToView int
 }
 
 func (buf *buffer) appendText(text string) {
@@ -51,12 +52,12 @@ func getEditorConfig(fd int, req uint) *editorConfig {
 		panic(err)
 	}
 
-	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0}
 }
 
 
 func drawLeftBorder(rows int, buf *buffer) {
-	for i := range rows - 1 {
+	for i := range rows {
 		buf.appendText("~")
 		buf.appendText("\x1b[K")
 
@@ -74,30 +75,16 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 	drawLeftBorder(config.rows, buf)
 
-	// Show the first x number of rows
-	log.Println("rows --->", config.rows)
-	log.Println("current y -->", config.y)
-	
-	var start, end int
+    start := config.firstRowToView
+    end := start + config.rows
+    text := editorContent[start : end]
 
-	if config.y == 0 {
-		start = 0
-	} else {
-		start = config.rows % config.y
-	}
-	end = start + config.y
-
-	for i := start; i < end; i++ {
-		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i, 2))
-		buf.appendText(editorContent[i])
+	for i, s := range text {
+		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
+		buf.appendText(s)
 	}
 
-	// for i, s := range editorContent {
-	// 	buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
-	// 	buf.appendText(s)
-	// }
-
-	cursorPos := fmt.Sprintf("\x1b[%d;%dH", config.y + 1, config.x + 1)
+    cursorPos := fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x + 1)
 	buf.appendText(cursorPos)
 
 	buf.appendText("\x1b[?25h")
@@ -169,8 +156,12 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 				case "A": // up
 					if config.y - 1 >= 0 {
 						config.y -= 1
-                        row_len := len(editorContent[config.y])
 
+                        if config.y < config.firstRowToView {
+                            config.firstRowToView -= 1
+                        }
+                        
+                        row_len := len(editorContent[config.y])
                         if row_len > 0 {
                             config.x = row_len + 1
                         } else {
@@ -180,8 +171,13 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 
 				case "B": // down
 					config.y += 1
-                    row_len := len(editorContent[config.y])
 
+                    if config.y >= config.rows {
+                        offsetCount := ((config.y / config.rows) - 1) * config.rows
+                        config.firstRowToView = offsetCount + (config.y % config.rows)
+                    }
+
+                    row_len := len(editorContent[config.y])
                     if row_len > 0 {
                         config.x = row_len + 1
                     } else {

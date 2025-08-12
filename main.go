@@ -108,6 +108,6 @@ func main() {
 	}
 
 	defer disableRawMode(&oldState, fd, ioctlSet)
-	defer writeData(filePath, editorContent)
+	// defer writeData(filePath, editorContent)
 	defer fmt.Println("\x1b[2J")
 }
