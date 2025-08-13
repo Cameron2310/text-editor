@@ -56,7 +56,7 @@ func readData(filePath string) []string {
 		log.Panic("Error ---> ", err)
 	}
 
-	log.Printf("Reading from %v\n%v", filePath, returnVal)
+	log.Printf("Reading from %v\n", filePath)
 	return returnVal
 }
 
