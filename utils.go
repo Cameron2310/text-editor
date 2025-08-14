@@ -70,7 +70,6 @@ func writeData(filePath string, data []string) {
 
 	defer f.Close()
 
-	log.Println(data)
 	for _, str := range data {
 		if len(str) > 0 {
 			f.WriteString(str + "\n")
