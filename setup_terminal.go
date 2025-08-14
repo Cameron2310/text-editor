@@ -1,6 +1,10 @@
 package main
 
-import "golang.org/x/sys/unix"
+import (
+	"fmt"
+
+	"golang.org/x/sys/unix"
+)
 
 
 func disableRawMode(term *unix.Termios, fd int, ioctlSet uint) {
@@ -25,6 +29,8 @@ func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("\x1B\x5B\x3F\x37\x6C")
 
 	return term
 }
