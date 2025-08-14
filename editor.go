@@ -31,6 +31,7 @@ type editorConfig struct {
 	y int
 	stateIdx int
     firstRowToView int
+	firstColToView int
 }
 
 func (buf *buffer) appendText(text string) {
@@ -170,25 +171,31 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 					}
 
 				case "B": // down
-					config.y += 1
+					if config.y + 1 < len(editorContent) {
+						config.y += 1
 
-                    if config.y >= config.rows {
-                        offsetCount := ((config.y / config.rows) - 1) * config.rows
-                        config.firstRowToView = offsetCount + (config.y % config.rows)
-                    }
+						offsetCount := ((config.y / config.rows) - 1) * config.rows
+						lastRow := config.firstRowToView + config.rows
 
-                    row_len := len(editorContent[config.y])
-                    if row_len > 0 {
-                        config.x = row_len + 1
-                    } else {
-                        config.x = 1
-                    }
+						if offsetCount >= 0 && lastRow == config.y {
+							config.firstRowToView = offsetCount + (config.y % config.rows) + 1
+						}
+
+						row_len := len(editorContent[config.y])
+						if row_len > 0 {
+							config.x = row_len + 1
+						} else {
+							config.x = 1
+						}
+					}
 
 				case "C": // right
                     row_len := len(editorContent[config.y])
-                    if config.x + 1 <= row_len + 1 {
+					log.Println("row len -->", row_len)
+
+                    if config.x + 1 < row_len {
                         config.x += 1
-                    }
+                    } 
 
 				case "D": // left
 					if config.x - 1 > 0 {

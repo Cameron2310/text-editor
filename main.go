@@ -42,6 +42,7 @@ func main() {
 	buf := &buffer{text: "", length: 0}
 
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
+	log.Println("cols --->", editorConfig.cols)
 
 	if err != nil {
 		panic(err)
