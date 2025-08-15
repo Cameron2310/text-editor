@@ -53,7 +53,7 @@ func getEditorConfig(fd int, req uint) *editorConfig {
 		panic(err)
 	}
 
-	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0, firstColToView: 2}
 }
 
 
@@ -81,7 +81,14 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
     text := editorContent[start : end]
 
 	for i, s := range text {
-		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 2))
+        if len(s) == config.cols {
+            log.Println("line 85 --->", config.firstColToView + config.cols - 2)
+            log.Println("slice -->", s[config.firstColToView : config.firstColToView + config.cols - 2])
+            s = s[config.firstColToView: config.firstColToView + config.cols - 2] 
+            config.firstColToView += 1
+        }
+
+        buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, config.firstColToView))
 		buf.appendText(s)
 	}
 
@@ -191,9 +198,8 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 
 				case "C": // right
                     row_len := len(editorContent[config.y])
-					log.Println("row len -->", row_len)
 
-                    if config.x + 1 < row_len {
+                    if config.x + 1 <= row_len + 1 {
                         config.x += 1
                     } 
 
