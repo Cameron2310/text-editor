@@ -53,7 +53,7 @@ func getEditorConfig(fd int, req uint) *editorConfig {
 		panic(err)
 	}
 
-	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0, firstColToView: 2}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0, firstColToView: 0}
 }
 
 
@@ -80,22 +80,32 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
     end := start + config.rows
     text := editorContent[start : end]
 
-	for i, s := range text {
-        if len(s) == config.cols {
-            log.Println("line 85 --->", config.firstColToView + config.cols - 2)
-            log.Println("slice -->", s[config.firstColToView : config.firstColToView + config.cols - 2])
-            s = s[config.firstColToView: config.firstColToView + config.cols - 2] 
-            config.firstColToView += 1
-        }
+	offsetCount := ((config.x / config.cols) - 1) * config.cols
+	lastCol := config.firstColToView + config.cols
 
-        buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, config.firstColToView))
+	for i, s := range text {
+		if offsetCount >= 0 && lastCol >= config.x {
+			if len(s) > 0 {
+				config.firstColToView = offsetCount + (config.x % config.cols) + 1
+				s = s[config.firstColToView : config.firstColToView + config.cols - 2]
+			}
+		}
+
+		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 0))
 		buf.appendText(s)
 	}
 
-    cursorPos := fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x + 1)
-	buf.appendText(cursorPos)
+	var cursorPos string
+	if len(editorContent[config.y]) > 0 {
+		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x)
 
+	} else {
+		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x + 1)
+	}
+
+	buf.appendText(cursorPos)
 	buf.appendText("\x1b[?25h")
+
 	fmt.Print(buf.text)
 }
 
@@ -153,6 +163,7 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 
 	return editorContent, goBackToPrevState
 }
+
 
 func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
 	switch keypress {
