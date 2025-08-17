@@ -13,6 +13,8 @@ func disableRawMode(term *unix.Termios, fd int, ioctlSet uint) {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("\x1b\x5B\x3F\x37\x68")
 }
 
 func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
