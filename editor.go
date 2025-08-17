@@ -85,10 +85,13 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 
 	for i, s := range text {
 		if offsetCount >= 0 && lastCol >= config.x {
-			if len(s) > 0 {
+			if len(s) > config.firstColToView {
 				config.firstColToView = offsetCount + (config.x % config.cols) + 1
-				s = s[config.firstColToView : config.firstColToView + config.cols - 2]
-			}
+				s = s[config.firstColToView:]
+
+			} else {
+				s = " "
+			} 
 		}
 
 		buf.appendText(fmt.Sprintf("\x1b[%d;%dH", i + 1, 0))
