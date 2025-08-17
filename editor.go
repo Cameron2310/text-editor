@@ -118,15 +118,22 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 	switch keypress {
 		case 13:
 			firstHalf := editorContent[:config.y + 1]
-			secondHalf := editorContent[config.y + 2:]
+            secondHalf := make([]string, len(editorContent))
+
+            copy(secondHalf, editorContent)
+            secondHalf = secondHalf[config.y + 1:]
 
 			newEditorContent := append(firstHalf, "")
 			newEditorContent = append(newEditorContent, secondHalf...)
 
 			editorContent = newEditorContent
+
 			config.y += 1
 			config.x = 1
 
+            if config.firstRowToView + config.rows == config.y {
+                config.firstRowToView += 1
+            }
 
 		// Ctrl-z
 		case 26:
