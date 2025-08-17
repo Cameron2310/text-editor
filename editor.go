@@ -116,6 +116,18 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 	goBackToPrevState := false
 
 	switch keypress {
+		case 13:
+			firstHalf := editorContent[:config.y + 1]
+			secondHalf := editorContent[config.y + 2:]
+
+			newEditorContent := append(firstHalf, "")
+			newEditorContent = append(newEditorContent, secondHalf...)
+
+			editorContent = newEditorContent
+			config.y += 1
+			config.x = 1
+
+
 		// Ctrl-z
 		case 26:
 			if config.stateIdx > 0 {
