@@ -247,7 +247,17 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 			}
 
 		default:
-			editorContent[config.y] += keypress
+			if len(editorContent[config.y]) > 0 {
+				firstHalf := editorContent[config.y][:config.x - 1]
+				secondHalf := editorContent[config.y][config.x - 1:]
+
+				firstHalf += keypress + secondHalf
+				editorContent[config.y] = firstHalf
+
+			} else {
+				editorContent[config.y] += keypress
+			}
+
             config.x += 1
 	}
 }
