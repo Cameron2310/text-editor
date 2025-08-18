@@ -49,14 +49,14 @@ func main() {
 
 	data := readData(filePath)
 
-	editorContent := make([]string, editorConfig.rows)
 	var prevStates []editorState
-	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.x, y: editorConfig.y}})
+	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.pos.x, y: editorConfig.pos.y}})
 
+	editorContent := make([]string, editorConfig.rows)
 	lenData := len(data)
+
 	if lenData > 0 {
-		editorContent = data
-		// copy(editorContent, data)
+		copy(editorContent, data)
 	}
 
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
@@ -82,7 +82,8 @@ func main() {
 		var goBackToPrevState bool
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			editorContent, goBackToPrevState = handleControlKeys(int(text), editorConfig, editorContent, prevStates)
+			editorContent, goBackToPrevState = handleControlKeys(text, editorConfig, editorContent, prevStates)
+
 		} else {
 			handleKeyPress(string(text), reader, editorConfig, editorContent)
 		}
@@ -92,10 +93,11 @@ func main() {
 				tmp := make([]string, len(editorContent))
 				copy(tmp, editorContent)
 
-				newState := editorState{content: tmp, cursorPos: position{x: editorConfig.x, y: editorConfig.y}}
+				newState := editorState{content: tmp, cursorPos: position{x: editorConfig.pos.x, y: editorConfig.pos.y}}
 
 				if editorConfig.stateIdx < len(prevStates) {
 					prevStates[editorConfig.stateIdx] = newState
+
 				} else {
 					prevStates = append(prevStates, newState)
 				}
@@ -108,6 +110,6 @@ func main() {
 	}
 
 	defer disableRawMode(&oldState, fd, ioctlSet)
-	// defer writeData(filePath, editorContent)
+	defer writeData(filePath, editorContent)
 	defer fmt.Println("\x1b[2J")
 }

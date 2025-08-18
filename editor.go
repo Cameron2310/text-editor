@@ -23,12 +23,10 @@ type editorState struct {
 	cursorPos position
 }
 
-// TODO: replace x & y with position struct
 type editorConfig struct {
 	rows int
 	cols int
-	x int
-	y int
+	pos position
 	stateIdx int
     firstRowToView int
 	firstColToView int
@@ -53,7 +51,7 @@ func getEditorConfig(fd int, req uint) *editorConfig {
 		panic(err)
 	}
 
-	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), x: 1, y: 0, stateIdx: 1, firstRowToView: 0, firstColToView: 0}
+	return &editorConfig{rows: int(winConfig.Row), cols: int(winConfig.Col), pos: position{x: 1, y: 0}, stateIdx: 1, firstRowToView: 0, firstColToView: 0}
 }
 
 
@@ -80,13 +78,13 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
     end := start + config.rows
     text := editorContent[start : end]
 
-	offsetCount := ((config.x / config.cols) - 1) * config.cols
+	offsetCount := ((config.pos.x / config.cols) - 1) * config.cols
 	lastCol := config.firstColToView + config.cols
 
 	for i, s := range text {
-		if offsetCount >= 0 && lastCol >= config.x {
+		if offsetCount >= 0 && lastCol >= config.pos.x {
 			if len(s) > config.firstColToView {
-				config.firstColToView = offsetCount + (config.x % config.cols) + 1
+				config.firstColToView = offsetCount + (config.pos.x % config.cols) + 1
 				s = s[config.firstColToView:]
 
 			} else {
@@ -99,11 +97,11 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 	}
 
 	var cursorPos string
-	if len(editorContent[config.y]) > 0 {
-		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x)
+	if len(editorContent[config.pos.y]) > 0 {
+		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.pos.y - start) + 1, config.pos.x)
 
 	} else {
-		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.y - start) + 1, config.x + 1)
+		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.pos.y - start) + 1, config.pos.x + 1)
 	}
 
 	buf.appendText(cursorPos)
@@ -113,33 +111,32 @@ func refreshScreen(config *editorConfig, buf *buffer, editorContent []string) {
 }
 
 
-// TODO: make all keymappings either octal or hex
 // TODO: fix bug where initial state gets overwritten
-func handleControlKeys(keypress int, config *editorConfig, editorContent []string, prevStates []editorState) ([]string, bool) {
+func handleControlKeys(keypress byte, config *editorConfig, editorContent []string, prevStates []editorState) ([]string, bool) {
 	goBackToPrevState := false
 
 	switch keypress {
-		case 13:
-			firstHalf := editorContent[:config.y + 1]
+		case '\x0d':
+			firstHalf := editorContent[:config.pos.y + 1]
             secondHalf := make([]string, len(editorContent))
 
             copy(secondHalf, editorContent)
-            secondHalf = secondHalf[config.y + 1:]
+            secondHalf = secondHalf[config.pos.y + 1:]
 
 			newEditorContent := append(firstHalf, "")
 			newEditorContent = append(newEditorContent, secondHalf...)
 
 			editorContent = newEditorContent
 
-			config.y += 1
-			config.x = 1
+			config.pos.y += 1
+			config.pos.x = 1
 
-            if config.firstRowToView + config.rows == config.y {
+            if config.firstRowToView + config.rows == config.pos.y {
                 config.firstRowToView += 1
             }
 
 		// Ctrl-z
-		case 26:
+		case '\x1a':
 			if config.stateIdx > 0 {
 				if config.stateIdx == len(prevStates) {
 					config.stateIdx -= 2
@@ -148,8 +145,8 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 				}
 				goBackToPrevState = true
 
-				config.x = prevStates[config.stateIdx].cursorPos.x
-				config.y = prevStates[config.stateIdx].cursorPos.y
+				config.pos.x = prevStates[config.stateIdx].cursorPos.x
+				config.pos.y = prevStates[config.stateIdx].cursorPos.y
 				editorContent = prevStates[config.stateIdx].content
 
 				if len(editorContent) == 0 {
@@ -159,26 +156,26 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 			}
 
 		// Ctrl-r Redo
-		case 18:
+		case '\x12':
 			if config.stateIdx + 1 < len(prevStates) {
 				config.stateIdx += 1
 				goBackToPrevState = true
 
-				config.x = prevStates[config.stateIdx].cursorPos.x
-				config.y = prevStates[config.stateIdx].cursorPos.y
+				config.pos.x = prevStates[config.stateIdx].cursorPos.x
+				config.pos.y = prevStates[config.stateIdx].cursorPos.y
 				editorContent = prevStates[config.stateIdx].content
 			}
 
 		// Backspace
-		case 127:
-			if config.x > 1 {
-				config.x -= 1
-				runes := []rune(editorContent[config.y])
+		case '\x7f':
+			if config.pos.x > 1 {
+				config.pos.x -= 1
+				runes := []rune(editorContent[config.pos.y])
 
-				if config.x >= len(runes) {
-					editorContent[config.y] = string(runes[:config.x - 1])
+				if config.pos.x >= len(runes) {
+					editorContent[config.pos.y] = string(runes[:config.pos.x - 1])
 				} else {
-					editorContent[config.y] = string(runes[:config.x]) + string(runes[config.x + 1:])
+					editorContent[config.pos.y] = string(runes[:config.pos.x]) + string(runes[config.pos.x + 1:])
 				}
 			}
 	}
@@ -188,76 +185,78 @@ func handleControlKeys(keypress int, config *editorConfig, editorContent []strin
 
 
 func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
+	log.Println("key --->", []byte(keypress))
 	switch keypress {
 		// TODO: fix bug where if [ key pressed it requires second [
 		case "[":
 			nextVal, _ := reader.ReadByte()
+			log.Println("next key --->", nextVal)
 
 			switch string(nextVal) {
 				case "A": // up
-					if config.y - 1 >= 0 {
-						config.y -= 1
+					if config.pos.y - 1 >= 0 {
+						config.pos.y -= 1
 
-                        if config.y < config.firstRowToView {
+                        if config.pos.y < config.firstRowToView {
                             config.firstRowToView -= 1
                         }
                         
-                        row_len := len(editorContent[config.y])
+                        row_len := len(editorContent[config.pos.y])
                         if row_len > 0 {
-                            config.x = row_len + 1
+                            config.pos.x = row_len + 1
                         } else {
-                            config.x = 1
+                            config.pos.x = 1
                         }
 					}
 
 				case "B": // down
-					if config.y + 1 < len(editorContent) {
-						config.y += 1
+					if config.pos.y + 1 < len(editorContent) {
+						config.pos.y += 1
 
-						offsetCount := ((config.y / config.rows) - 1) * config.rows
+						offsetCount := ((config.pos.y / config.rows) - 1) * config.rows
 						lastRow := config.firstRowToView + config.rows
 
-						if offsetCount >= 0 && lastRow == config.y {
-							config.firstRowToView = offsetCount + (config.y % config.rows) + 1
+						if offsetCount >= 0 && lastRow == config.pos.y {
+							config.firstRowToView = offsetCount + (config.pos.y % config.rows) + 1
 						}
 
-						row_len := len(editorContent[config.y])
+						row_len := len(editorContent[config.pos.y])
 						if row_len > 0 {
-							config.x = row_len + 1
+							config.pos.x = row_len + 1
 						} else {
-							config.x = 1
+							config.pos.x = 1
 						}
 					}
 
 				case "C": // right
-                    row_len := len(editorContent[config.y])
+                    row_len := len(editorContent[config.pos.y])
 
-                    if config.x + 1 <= row_len + 1 {
-                        config.x += 1
+                    if config.pos.x + 1 <= row_len + 1 {
+                        config.pos.x += 1
                     } 
 
 				case "D": // left
-					if config.x - 1 > 0 {
-						config.x -= 1
+					if config.pos.x - 1 > 0 {
+						config.pos.x -= 1
 					}
 
 				default:
-					editorContent[config.y] += string(nextVal)
-                    config.x += 1
+					editorContent[config.pos.y] += string(nextVal)
+                    config.pos.x += 1
 			}
 
 		default:
-			if len(editorContent[config.y]) > 0 {
-				firstHalf := editorContent[config.y][:config.x - 1]
-				secondHalf := editorContent[config.y][config.x - 1:]
+			if len(editorContent[config.pos.y]) > 0 {
+				firstHalf := editorContent[config.pos.y][:config.pos.x - 1]
+				secondHalf := editorContent[config.pos.y][config.pos.x - 1:]
 
 				firstHalf += keypress + secondHalf
-				editorContent[config.y] = firstHalf
+				editorContent[config.pos.y] = firstHalf
 
 			} else {
-				editorContent[config.y] += keypress
+				editorContent[config.pos.y] += keypress
 			}
 
-            config.x += 1
+            config.pos.x += 1
 	}
 }
