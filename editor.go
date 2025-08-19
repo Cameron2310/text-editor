@@ -185,12 +185,10 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 
 
 func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
-	log.Println("key --->", []byte(keypress))
 	switch keypress {
 		// TODO: fix bug where if [ key pressed it requires second [
 		case "[":
 			nextVal, _ := reader.ReadByte()
-			log.Println("next key --->", nextVal)
 
 			switch string(nextVal) {
 				case "A": // up
