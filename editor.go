@@ -139,7 +139,7 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 		// Ctrl-z undo
 		case '\x1a':
 			if config.stateIdx > 0 {
-				if config.stateIdx == len(prevStates) {
+				if config.stateIdx == len(prevStates) && config.stateIdx > 1{
 					config.stateIdx -= 2
 				} else {
 					config.stateIdx -= 1
@@ -150,9 +150,10 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 				config.pos.y = prevStates[config.stateIdx].cursorPos.y
                 copy(editorContent, prevStates[config.stateIdx].content)
 
-				if len(editorContent) == 0 {
+				if len(editorContent) == 0  || len(prevStates[config.stateIdx].content) == 0{
 					log.Println("editor content is nil. Resetting...")
 					editorContent = make([]string, config.rows)
+                    config.stateIdx = 1
 				}
 			}
 
@@ -185,7 +186,9 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 }
 
 
-func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) {
+func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig, editorContent []string) bool {
+    shouldStateChange := false
+
 	switch keypress {
 		// TODO: fix bug where if [ key pressed it requires second [
 		case "[":
@@ -208,6 +211,8 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
                         }
 					}
 
+                    shouldStateChange = true
+
 				case "B": // down
 					if config.pos.y + 1 < len(editorContent) {
 						config.pos.y += 1
@@ -227,6 +232,8 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 						}
 					}
 
+                    shouldStateChange = true
+
 				case "C": // right
                     row_len := len(editorContent[config.pos.y])
 
@@ -234,10 +241,14 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
                         config.pos.x += 1
                     } 
 
+                    shouldStateChange = true
+
 				case "D": // left
 					if config.pos.x - 1 > 0 {
 						config.pos.x -= 1
 					}
+
+                    shouldStateChange = true
 
 				default:
 					editorContent[config.pos.y] += string(nextVal)
@@ -258,4 +269,6 @@ func handleKeyPress(keypress string, reader *bufio.Reader, config *editorConfig,
 
             config.pos.x += 1
 	}
+
+    return shouldStateChange
 }

@@ -83,13 +83,14 @@ func main() {
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
 			editorContent, goBackToPrevState = handleControlKeys(text, editorConfig, editorContent, prevStates)
+            goBackToPrevState = true
 
 		} else {
-			handleKeyPress(string(text), reader, editorConfig, editorContent)
+			goBackToPrevState = handleKeyPress(string(text), reader, editorConfig, editorContent)
 		}
 
-		if slices.Equal(editorContent, prevStates[len(prevStates) - 1].content) == false {
-			if !goBackToPrevState {
+        if !goBackToPrevState {
+		    if slices.Equal(editorContent, prevStates[len(prevStates) - 1].content) == false {
 				tmp := make([]string, len(editorContent))
 				copy(tmp, editorContent)
 
@@ -101,9 +102,9 @@ func main() {
 				} else {
 					prevStates = append(prevStates, newState)
 				}
-				
-				editorConfig.stateIdx += 1
 			}
+
+            editorConfig.stateIdx += 1
 		}
 		
 		buf.text = ""
