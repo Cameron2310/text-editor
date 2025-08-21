@@ -116,6 +116,7 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 	goBackToPrevState := false
 
 	switch keypress {
+        // Enter
 		case '\x0d':
 			firstHalf := editorContent[:config.pos.y + 1]
             secondHalf := make([]string, len(editorContent))
@@ -135,7 +136,7 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
                 config.firstRowToView += 1
             }
 
-		// Ctrl-z
+		// Ctrl-z undo
 		case '\x1a':
 			if config.stateIdx > 0 {
 				if config.stateIdx == len(prevStates) {
@@ -147,7 +148,7 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 
 				config.pos.x = prevStates[config.stateIdx].cursorPos.x
 				config.pos.y = prevStates[config.stateIdx].cursorPos.y
-				editorContent = prevStates[config.stateIdx].content
+                copy(editorContent, prevStates[config.stateIdx].content)
 
 				if len(editorContent) == 0 {
 					log.Println("editor content is nil. Resetting...")
@@ -163,7 +164,7 @@ func handleControlKeys(keypress byte, config *editorConfig, editorContent []stri
 
 				config.pos.x = prevStates[config.stateIdx].cursorPos.x
 				config.pos.y = prevStates[config.stateIdx].cursorPos.y
-				editorContent = prevStates[config.stateIdx].content
+                copy(editorContent, prevStates[config.stateIdx].content)
 			}
 
 		// Backspace
