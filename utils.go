@@ -52,7 +52,7 @@ func readData(filePath string) []string {
 		val := fileScanner.Text()
 
 		if len(val) == 0 {
-			val = "\r"
+			val = ""
 		}
 
 		returnVal = append(returnVal, val)
@@ -78,8 +78,13 @@ func writeData(filePath string, data []string) {
 
 	for _, str := range data {
 		if len(str) > 0 {
-			f.WriteString(str + "\n")
-		}
+            if str[len(str) - 1] != '\n' {
+                f.WriteString(str + "\n")
+            }
+
+		} else {
+            f.WriteString("\n")
+        }
 	}
 
 	f.Sync()
