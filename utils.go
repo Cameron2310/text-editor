@@ -49,13 +49,7 @@ func readData(filePath string) []string {
 	fileScanner.Split(bufio.ScanLines)
 
 	for fileScanner.Scan() {
-		val := fileScanner.Text()
-
-		if len(val) == 0 {
-			val = ""
-		}
-
-		returnVal = append(returnVal, val)
+		returnVal = append(returnVal, fileScanner.Text())
 	}
 	
 	if err = fileScanner.Err(); err != nil {
