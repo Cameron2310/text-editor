@@ -47,7 +47,7 @@ func main() {
 		panic(err)
 	}
 
-	data := readData(filePath)
+	data := readData(filePath, editorConfig)
 
 	var prevStates []editorState
 	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.pos.x, y: editorConfig.pos.y}})

@@ -30,7 +30,7 @@ func determineReadWriteOptions() (uint, uint, error) {
 }
 
 
-func readData(filePath string) []string {
+func readData(filePath string, config *editorConfig) []string {
 	content, err := os.Open(filePath)
 	var returnVal []string
 
@@ -55,6 +55,12 @@ func readData(filePath string) []string {
 	if err = fileScanner.Err(); err != nil {
 		log.Panic("Error ---> ", err)
 	}
+
+    if len(returnVal) < config.rows {
+        for len(returnVal) < config.rows {
+            returnVal = append(returnVal, "")
+        }
+    }
 
 	log.Printf("Reading from %v\n", filePath)
 	return returnVal
