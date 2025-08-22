@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"text-editor/editor"
 	"fmt"
 	"log"
 	"os"
@@ -38,8 +39,8 @@ func main() {
 	filePath := os.Args[1]
 	fd := unix.Stdin
 
-	editorConfig := getEditorConfig(fd, unix.TIOCGWINSZ)
-	buf := &buffer{text: "", length: 0}
+	editorConfig := editor.GetEditorConfig(fd, unix.TIOCGWINSZ)
+	buf := &editor.Buffer{Text: "", Length: 0}
 
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
 
@@ -49,10 +50,10 @@ func main() {
 
 	data := readData(filePath, editorConfig)
 
-	var prevStates []editorState
-	prevStates = append(prevStates, editorState{content: []string{}, cursorPos: position{x: editorConfig.pos.x, y: editorConfig.pos.y}})
+	var prevStates []editor.EditorState
+	prevStates = append(prevStates, editor.EditorState{Content: []string{}, CursorPos: editor.Position{X: editorConfig.Pos.X, Y: editorConfig.Pos.Y}})
 
-	editorContent := make([]string, editorConfig.rows)
+	editorContent := make([]string, editorConfig.Rows)
 	lenData := len(data)
 
 	if lenData > 0 {
@@ -77,37 +78,37 @@ func main() {
 			break
 		}
 
-		refreshScreen(editorConfig, buf, editorContent)
+		editor.RefreshScreen(editorConfig, buf, editorContent)
 		text, _ = reader.ReadByte()
 		var goBackToPrevState bool
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			editorContent, goBackToPrevState = handleControlKeys(text, editorConfig, editorContent, prevStates)
+			editorContent, goBackToPrevState = editor.HandleControlKeys(text, editorConfig, editorContent, prevStates)
             goBackToPrevState = true
 
 		} else {
-			goBackToPrevState = handleKeyPress(string(text), reader, editorConfig, editorContent)
+			goBackToPrevState = editor.HandleKeyPress(string(text), reader, editorConfig, editorContent)
 		}
 
         if !goBackToPrevState {
-		    if slices.Equal(editorContent, prevStates[len(prevStates) - 1].content) == false {
+		    if slices.Equal(editorContent, prevStates[len(prevStates) - 1].Content) == false {
 				tmp := make([]string, len(editorContent))
 				copy(tmp, editorContent)
 
-				newState := editorState{content: tmp, cursorPos: position{x: editorConfig.pos.x, y: editorConfig.pos.y}}
+				newState := editor.EditorState{Content: tmp, CursorPos: editor.Position{X: editorConfig.Pos.X, Y: editorConfig.Pos.Y}}
 
-				if editorConfig.stateIdx < len(prevStates) {
-					prevStates[editorConfig.stateIdx] = newState
+				if editorConfig.StateIdx < len(prevStates) {
+					prevStates[editorConfig.StateIdx] = newState
 
 				} else {
 					prevStates = append(prevStates, newState)
 				}
 			}
 
-            editorConfig.stateIdx += 1
+            editorConfig.StateIdx += 1
 		}
 		
-		buf.text = ""
+		buf.Text = ""
 	}
 
 	defer disableRawMode(&oldState, fd, ioctlSet)

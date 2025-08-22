@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"text-editor/editor"
 )
 
 
@@ -30,7 +31,7 @@ func determineReadWriteOptions() (uint, uint, error) {
 }
 
 
-func readData(filePath string, config *editorConfig) []string {
+func readData(filePath string, config *editor.EditorConfig) []string {
 	content, err := os.Open(filePath)
 	var returnVal []string
 
@@ -56,8 +57,8 @@ func readData(filePath string, config *editorConfig) []string {
 		log.Panic("Error ---> ", err)
 	}
 
-    if len(returnVal) < config.rows {
-        for len(returnVal) < config.rows {
+    if len(returnVal) < config.Rows {
+        for len(returnVal) < config.Rows {
             returnVal = append(returnVal, "")
         }
     }
