@@ -12,29 +12,35 @@ import (
 )
 
 
+func setupLogging() *os.File {
+ 	err := os.MkdirAll("./logs", os.ModePerm)
+
+	if err != nil {
+		errMsg := fmt.Sprintf("Could not create directory due to %v", err)
+		panic(errMsg)
+	}   
+
+    logFile, err := os.OpenFile("logs/text-editor.log", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+
+    if err != nil {
+        log.Panic(err)
+    }
+
+    log.SetOutput(logFile)
+    log.SetFlags(log.Lshortfile | log.LstdFlags)
+
+    return logFile
+}
+
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("File path not found...")
 		return
 	}
 
-	err := os.MkdirAll("./logs", os.ModePerm)
-
-	if err != nil {
-		errMsg := fmt.Sprintf("Could not create directory due to %v", err)
-		panic(errMsg)
-	}
-
-	logFile, err := os.OpenFile("logs/text-editor.log", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
-
-	if err != nil {
-		log.Panic(err)
-	}
-
+    logFile := setupLogging()
 	defer logFile.Close()
-
-	log.SetOutput(logFile)
-    log.SetFlags(log.Lshortfile | log.LstdFlags)
 
 	filePath := os.Args[1]
 	fd := unix.Stdin
@@ -48,17 +54,11 @@ func main() {
 		panic(err)
 	}
 
-	data := readData(filePath, editorConfig)
-
 	var prevStates []*editor.Snapshot
 	prevStates = append(prevStates, editorConfig.CreateSnapshot())
 
-	lenData := len(data)
-
-	if lenData > 0 {
-		editorConfig.Content = data
-	}
-
+    // TODO: possibly move this elsewhere
+    readData(filePath, editorConfig)
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
 	oldState := *term
 

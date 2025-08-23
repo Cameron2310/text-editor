@@ -31,16 +31,15 @@ func determineReadWriteOptions() (uint, uint, error) {
 }
 
 
-func readData(filePath string, config *editor.EditorConfig) []string {
+func readData(filePath string, config *editor.EditorConfig) {
 	content, err := os.Open(filePath)
 	var returnVal []string
 
 	if err != nil {
-		return []string{}
+        log.Println("Err -->", err)
 	}
 
 	defer content.Close()
-
 	fileScanner := bufio.NewScanner(content)
 
 	// TODO: change the way data is read
@@ -53,10 +52,6 @@ func readData(filePath string, config *editor.EditorConfig) []string {
 		returnVal = append(returnVal, fileScanner.Text())
 	}
 	
-	if err = fileScanner.Err(); err != nil {
-		log.Panic("Error ---> ", err)
-	}
-
     if len(returnVal) < config.Rows {
         for len(returnVal) < config.Rows {
             returnVal = append(returnVal, "")
@@ -64,7 +59,8 @@ func readData(filePath string, config *editor.EditorConfig) []string {
     }
 
 	log.Printf("Reading from %v\n", filePath)
-	return returnVal
+
+    config.Content = returnVal
 }
 
 
