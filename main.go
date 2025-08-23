@@ -39,7 +39,7 @@ func main() {
 	filePath := os.Args[1]
 	fd := unix.Stdin
 
-	editorConfig := editor.GetEditorConfig(fd, unix.TIOCGWINSZ)
+	editorConfig := editor.NewEditorConfig(fd, unix.TIOCGWINSZ)
 	buf := &editor.Buffer{Text: "", Length: 0}
 
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
@@ -50,14 +50,13 @@ func main() {
 
 	data := readData(filePath, editorConfig)
 
-	var prevStates []editor.EditorState
-	prevStates = append(prevStates, editor.EditorState{Content: []string{}, CursorPos: editor.Position{X: editorConfig.Pos.X, Y: editorConfig.Pos.Y}})
+	var prevStates []*editor.Snapshot
+	prevStates = append(prevStates, editorConfig.CreateSnapshot())
 
-	editorContent := make([]string, editorConfig.Rows)
 	lenData := len(data)
 
 	if lenData > 0 {
-		editorContent = data
+		editorConfig.Content = data
 	}
 
 	term, err := unix.IoctlGetTermios(fd, ioctlGet)
@@ -78,24 +77,21 @@ func main() {
 			break
 		}
 
-		editor.RefreshScreen(editorConfig, buf, editorContent)
+		editor.RefreshScreen(editorConfig, buf)
 		text, _ = reader.ReadByte()
 		var goBackToPrevState bool
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			editorContent, goBackToPrevState = editor.HandleControlKeys(text, editorConfig, editorContent, prevStates)
+			editorConfig.Content, goBackToPrevState = editor.HandleControlKeys(text, editorConfig, prevStates)
             goBackToPrevState = true
 
 		} else {
-			goBackToPrevState = editor.HandleKeyPress(string(text), reader, editorConfig, editorContent)
+			goBackToPrevState = editor.HandleKeyPress(string(text), reader, editorConfig)
 		}
 
         if !goBackToPrevState {
-		    if slices.Equal(editorContent, prevStates[len(prevStates) - 1].Content) == false {
-				tmp := make([]string, len(editorContent))
-				copy(tmp, editorContent)
-
-				newState := editor.EditorState{Content: tmp, CursorPos: editor.Position{X: editorConfig.Pos.X, Y: editorConfig.Pos.Y}}
+		    if slices.Equal(editorConfig.Content, prevStates[len(prevStates) - 1].Content) == false {
+				newState := editorConfig.CreateSnapshot()
 
 				if editorConfig.StateIdx < len(prevStates) {
 					prevStates[editorConfig.StateIdx] = newState
@@ -112,6 +108,6 @@ func main() {
 	}
 
 	defer disableRawMode(&oldState, fd, ioctlSet)
-	defer writeData(filePath, editorContent)
+	defer writeData(filePath, editorConfig.Content)
 	defer fmt.Println("\x1b[2J")
 }

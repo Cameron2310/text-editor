@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-
-	"golang.org/x/sys/unix"
 )
 
 type Buffer struct {
@@ -18,19 +16,6 @@ type Position struct {
 	Y int
 }
 
-type EditorState struct {
-	Content []string
-	CursorPos Position
-}
-
-type EditorConfig struct {
-	Rows int
-	cols int
-	Pos Position
-	StateIdx int
-    firstRowToView int
-	firstColToView int
-}
 
 func (buf *Buffer) appendText(text string) {
 	newBuf := buf.Text + text
@@ -41,17 +26,6 @@ func (buf *Buffer) appendText(text string) {
 
 	buf.Text = newBuf
 	buf.Length += len(newBuf)
-}
-
-
-func GetEditorConfig(fd int, req uint) *EditorConfig {
-	winConfig, err := unix.IoctlGetWinsize(fd, req)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return &EditorConfig{Rows: int(winConfig.Row), cols: int(winConfig.Col), Pos: Position{X: 1, Y: 0}, StateIdx: 1, firstRowToView: 0, firstColToView: 0}
 }
 
 
@@ -67,7 +41,7 @@ func drawLeftBorder(rows int, buf *Buffer) {
 }
 
 
-func RefreshScreen(config *EditorConfig, buf *Buffer, editorContent []string) {
+func RefreshScreen(config *EditorConfig, buf *Buffer) {
 	buf.appendText("\x1b[6 q")
 	buf.appendText("\x1b[?25l")
 	buf.appendText("\x1b[H")
@@ -76,7 +50,7 @@ func RefreshScreen(config *EditorConfig, buf *Buffer, editorContent []string) {
 
     start := config.firstRowToView
     end := start + config.Rows
-    text := editorContent[start : end]
+    text := config.Content[start : end]
 
 	offsetCount := ((config.Pos.X / config.cols) - 1) * config.cols
 	lastCol := config.firstColToView + config.cols
@@ -97,7 +71,7 @@ func RefreshScreen(config *EditorConfig, buf *Buffer, editorContent []string) {
 	}
 
 	var cursorPos string
-	if len(editorContent[config.Pos.Y]) > 0 {
+	if len(config.Content[config.Pos.Y]) > 0 {
 		cursorPos = fmt.Sprintf("\x1b[%d;%dH", (config.Pos.Y - start) + 1, config.Pos.X)
 
 	} else {
@@ -111,23 +85,22 @@ func RefreshScreen(config *EditorConfig, buf *Buffer, editorContent []string) {
 }
 
 
-// TODO: fix bug where initial state gets overwritten
-func HandleControlKeys(keypress byte, config *EditorConfig, editorContent []string, prevStates []EditorState) ([]string, bool) {
+func HandleControlKeys(keypress byte, config *EditorConfig, prevStates []*Snapshot) ([]string, bool) {
 	goBackToPrevState := false
 
 	switch keypress {
         // Enter
 		case '\x0d':
-			firstHalf := editorContent[:config.Pos.Y + 1]
-            secondHalf := make([]string, len(editorContent))
+			firstHalf := config.Content[:config.Pos.Y + 1]
+            secondHalf := make([]string, len(config.Content))
 
-            copy(secondHalf, editorContent)
+            copy(secondHalf, config.Content)
             secondHalf = secondHalf[config.Pos.Y + 1:]
 
 			newEditorContent := append(firstHalf, "")
 			newEditorContent = append(newEditorContent, secondHalf...)
 
-			editorContent = newEditorContent
+			config.Content = newEditorContent
 
 			config.Pos.Y += 1
 			config.Pos.X = 1
@@ -146,13 +119,15 @@ func HandleControlKeys(keypress byte, config *EditorConfig, editorContent []stri
 				}
 				goBackToPrevState = true
 
-				config.Pos.X = prevStates[config.StateIdx].CursorPos.X
-				config.Pos.Y = prevStates[config.StateIdx].CursorPos.Y
-                copy(editorContent, prevStates[config.StateIdx].Content)
+				restoredContent, restoredPos := prevStates[config.StateIdx].Restore() 
+				config.Pos.X = restoredPos.X
+				config.Pos.Y = restoredPos.Y
 
-				if len(editorContent) == 0  || len(prevStates[config.StateIdx].Content) == 0{
+                copy(config.Content, restoredContent)
+
+				if len(config.Content) == 0  || len(restoredContent) == 0{
 					log.Println("editor content is nil. Resetting...")
-					editorContent = make([]string, config.Rows)
+					config.Content = make([]string, config.Rows)
                     config.StateIdx = 1
 				}
 			}
@@ -163,30 +138,32 @@ func HandleControlKeys(keypress byte, config *EditorConfig, editorContent []stri
 				config.StateIdx += 1
 				goBackToPrevState = true
 
-				config.Pos.X = prevStates[config.StateIdx].CursorPos.X
-				config.Pos.Y = prevStates[config.StateIdx].CursorPos.Y
-                copy(editorContent, prevStates[config.StateIdx].Content)
+				restoredContent, restoredPos := prevStates[config.StateIdx].Restore() 
+				config.Pos.X = restoredPos.X
+				config.Pos.Y = restoredPos.Y
+
+                copy(config.Content, restoredContent)
 			}
 
 		// Backspace
 		case '\x7f':
 			if config.Pos.X > 1 {
 				config.Pos.X -= 1
-				runes := []rune(editorContent[config.Pos.Y])
+				runes := []rune(config.Content[config.Pos.Y])
 
 				if config.Pos.X >= len(runes) {
-					editorContent[config.Pos.Y] = string(runes[:config.Pos.X - 1])
+					config.Content[config.Pos.Y] = string(runes[:config.Pos.X - 1])
 				} else {
-					editorContent[config.Pos.Y] = string(runes[:config.Pos.X]) + string(runes[config.Pos.X + 1:])
+					config.Content[config.Pos.Y] = string(runes[:config.Pos.X]) + string(runes[config.Pos.X + 1:])
 				}
 			}
 	}
 
-	return editorContent, goBackToPrevState
+	return config.Content, goBackToPrevState
 }
 
 
-func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig, editorContent []string) bool {
+func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig) bool {
     shouldStateChange := false
 
 	switch keypress {
@@ -203,7 +180,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig,
                             config.firstRowToView -= 1
                         }
                         
-                        row_len := len(editorContent[config.Pos.Y])
+                        row_len := len(config.Content[config.Pos.Y])
                         if row_len > 0 {
                             config.Pos.X = row_len + 1
                         } else {
@@ -214,7 +191,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig,
                     shouldStateChange = true
 
 				case "B": // down
-					if config.Pos.Y + 1 < len(editorContent) {
+					if config.Pos.Y + 1 < len(config.Content) {
 						config.Pos.Y += 1
 
 						offsetCount := ((config.Pos.Y / config.Rows) - 1) * config.Rows
@@ -224,7 +201,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig,
 							config.firstRowToView = offsetCount + (config.Pos.Y % config.Rows) + 1
 						}
 
-						row_len := len(editorContent[config.Pos.Y])
+						row_len := len(config.Content[config.Pos.Y])
 						if row_len > 0 {
 							config.Pos.X = row_len + 1
 						} else {
@@ -235,7 +212,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig,
                     shouldStateChange = true
 
 				case "C": // right
-                    row_len := len(editorContent[config.Pos.Y])
+                    row_len := len(config.Content[config.Pos.Y])
 
                     if config.Pos.X + 1 <= row_len + 1 {
                         config.Pos.X += 1
@@ -251,20 +228,20 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig,
                     shouldStateChange = true
 
 				default:
-					editorContent[config.Pos.Y] += string(nextVal)
+					config.Content[config.Pos.Y] += string(nextVal)
                     config.Pos.X += 1
 			}
 
 		default:
-			if len(editorContent[config.Pos.Y]) > 0 {
-				firstHalf := editorContent[config.Pos.Y][:config.Pos.X - 1]
-				secondHalf := editorContent[config.Pos.Y][config.Pos.X - 1:]
+			if len(config.Content[config.Pos.Y]) > 0 {
+				firstHalf := config.Content[config.Pos.Y][:config.Pos.X - 1]
+				secondHalf := config.Content[config.Pos.Y][config.Pos.X - 1:]
 
 				firstHalf += keypress + secondHalf
-				editorContent[config.Pos.Y] = firstHalf
+				config.Content[config.Pos.Y] = firstHalf
 
 			} else {
-				editorContent[config.Pos.Y] += keypress
+				config.Content[config.Pos.Y] += keypress
 			}
 
             config.Pos.X += 1
