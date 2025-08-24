@@ -1,4 +1,4 @@
-for i in {0..5000}; do
+for i in {0..1000}; do
     echo -n "This is line $i" >> ./output.txt
     for j in {0..100}; do
         echo -n "$j " >> output.txt
