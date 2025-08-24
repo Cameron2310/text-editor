@@ -86,7 +86,7 @@ func RefreshScreen(config *EditorConfig, buf *Buffer) {
 
 
 func HandleControlKeys(keypress byte, config *EditorConfig, prevStates []*Snapshot) ([]string, bool) {
-	goBackToPrevState := false
+	changeState := false
 
 	switch keypress {
         // Enter
@@ -117,7 +117,7 @@ func HandleControlKeys(keypress byte, config *EditorConfig, prevStates []*Snapsh
 				} else {
 					config.StateIdx -= 1
 				}
-				goBackToPrevState = true
+				changeState = true
 
 				restoredContent, restoredPos := prevStates[config.StateIdx].Restore() 
 				config.Pos.X = restoredPos.X
@@ -136,7 +136,7 @@ func HandleControlKeys(keypress byte, config *EditorConfig, prevStates []*Snapsh
 		case '\x12':
 			if config.StateIdx + 1 < len(prevStates) {
 				config.StateIdx += 1
-				goBackToPrevState = true
+				changeState = true
 
 				restoredContent, restoredPos := prevStates[config.StateIdx].Restore() 
 				config.Pos.X = restoredPos.X
@@ -159,7 +159,7 @@ func HandleControlKeys(keypress byte, config *EditorConfig, prevStates []*Snapsh
 			}
 	}
 
-	return config.Content, goBackToPrevState
+	return config.Content, changeState
 }
 
 
@@ -183,6 +183,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig)
                         row_len := len(config.Content[config.Pos.Y])
                         if row_len > 0 {
                             config.Pos.X = row_len + 1
+
                         } else {
                             config.Pos.X = 1
                         }
@@ -204,6 +205,7 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig)
 						row_len := len(config.Content[config.Pos.Y])
 						if row_len > 0 {
 							config.Pos.X = row_len + 1
+
 						} else {
 							config.Pos.X = 1
 						}
@@ -243,7 +245,6 @@ func HandleKeyPress(keypress string, reader *bufio.Reader, config *EditorConfig)
 			} else {
 				config.Content[config.Pos.Y] += keypress
 			}
-
             config.Pos.X += 1
 	}
 

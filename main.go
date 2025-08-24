@@ -14,14 +14,12 @@ import (
 
 func setupLogging() *os.File {
  	err := os.MkdirAll("./logs", os.ModePerm)
-
 	if err != nil {
 		errMsg := fmt.Sprintf("Could not create directory due to %v", err)
 		panic(errMsg)
 	}   
 
     logFile, err := os.OpenFile("logs/text-editor.log", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
-
     if err != nil {
         log.Panic(err)
     }
@@ -42,14 +40,11 @@ func main() {
     logFile := setupLogging()
 	defer logFile.Close()
 
-	filePath := os.Args[1]
 	fd := unix.Stdin
-
 	editorConfig := editor.NewEditorConfig(fd, unix.TIOCGWINSZ)
 	buf := &editor.Buffer{Text: "", Length: 0}
 
 	ioctlGet, ioctlSet, err := determineReadWriteOptions()
-
 	if err != nil {
 		panic(err)
 	}
@@ -57,16 +52,20 @@ func main() {
 	var prevStates []*editor.Snapshot
 	prevStates = append(prevStates, editorConfig.CreateSnapshot())
 
+    filePath := os.Args[1]
     // TODO: possibly move this elsewhere
     readData(filePath, editorConfig)
-	term, err := unix.IoctlGetTermios(fd, ioctlGet)
-	oldState := *term
+    defer writeData(filePath, editorConfig.Content)
 
+	term, err := unix.IoctlGetTermios(fd, ioctlGet)
 	if err != nil {
 		panic(err)
 	}
 
+    oldState := *term
+
 	enableRawMode(term, fd, ioctlSet)
+    defer disableRawMode(&oldState, fd, ioctlSet)
 
 	reader := bufio.NewReader(os.Stdin)
 	text := byte(0)
@@ -79,17 +78,17 @@ func main() {
 
 		editor.RefreshScreen(editorConfig, buf)
 		text, _ = reader.ReadByte()
-		var goBackToPrevState bool
+		var shouldStateChange bool
 
 		if (int(text) > 0 && int(text) <= 31) || int(text) == 127 {
-			editorConfig.Content, goBackToPrevState = editor.HandleControlKeys(text, editorConfig, prevStates)
-            goBackToPrevState = true
+			editorConfig.Content, shouldStateChange = editor.HandleControlKeys(text, editorConfig, prevStates)
+            shouldStateChange = true
 
 		} else {
-			goBackToPrevState = editor.HandleKeyPress(string(text), reader, editorConfig)
+			shouldStateChange = editor.HandleKeyPress(string(text), reader, editorConfig)
 		}
 
-        if !goBackToPrevState {
+        if !shouldStateChange {
 		    if slices.Equal(editorConfig.Content, prevStates[len(prevStates) - 1].Content) == false {
 				newState := editorConfig.CreateSnapshot()
 
@@ -100,14 +99,9 @@ func main() {
 					prevStates = append(prevStates, newState)
 				}
 			}
-
             editorConfig.StateIdx += 1
 		}
-		
 		buf.Text = ""
 	}
-
-	defer disableRawMode(&oldState, fd, ioctlSet)
-	defer writeData(filePath, editorConfig.Content)
 	defer fmt.Println("\x1b[2J")
 }

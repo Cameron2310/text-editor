@@ -9,7 +9,6 @@ import (
 
 func disableRawMode(term *unix.Termios, fd int, ioctlSet uint) {
 	err := unix.IoctlSetTermios(fd, ioctlSet, term)
-
 	if err != nil {
 		panic(err)
 	}
@@ -27,7 +26,6 @@ func enableRawMode(term *unix.Termios, fd int, ioctlSet uint) *unix.Termios {
 	term.Cc[unix.VTIME] = 0
 
 	err := unix.IoctlSetTermios(fd, ioctlSet, term)
-
 	if err != nil {
 		panic(err)
 	}

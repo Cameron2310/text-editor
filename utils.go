@@ -16,8 +16,8 @@ func determineReadWriteOptions() (uint, uint, error) {
 
 	const amdGet = 0x5401 // TCGETS
 	const amdSet = 0x5402 // TCSETS
-	sysArch := runtime.GOARCH
-
+	
+    sysArch := runtime.GOARCH
 	switch sysArch {
 		case "arm64":
 			return armGet, armSet, nil
@@ -32,9 +32,9 @@ func determineReadWriteOptions() (uint, uint, error) {
 
 
 func readData(filePath string, config *editor.EditorConfig) {
-	content, err := os.Open(filePath)
-	var returnVal []string
+    var returnVal []string
 
+	content, err := os.Open(filePath)
 	if err != nil {
         log.Println("Err -->", err)
 	}
@@ -42,10 +42,8 @@ func readData(filePath string, config *editor.EditorConfig) {
 	defer content.Close()
 	fileScanner := bufio.NewScanner(content)
 
-	// TODO: change the way data is read
 	const maxCapacity = 1024 * 1024
 	fileScanner.Buffer(make([]byte, 0, maxCapacity), maxCapacity)
-
 	fileScanner.Split(bufio.ScanLines)
 
 	for fileScanner.Scan() {
@@ -59,18 +57,15 @@ func readData(filePath string, config *editor.EditorConfig) {
     }
 
 	log.Printf("Reading from %v\n", filePath)
-
     config.Content = returnVal
 }
 
 
 func writeData(filePath string, data []string) {
 	f, err := os.OpenFile(filePath, os.O_CREATE | os.O_WRONLY, 0644)
-
 	if err != nil {
 		panic(err)
 	}
-
 	defer f.Close()
 
 	for _, str := range data {
@@ -83,7 +78,6 @@ func writeData(filePath string, data []string) {
             f.WriteString("\n")
         }
 	}
-
 	f.Sync()
 }
 
